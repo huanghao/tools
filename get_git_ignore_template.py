@@ -50,8 +50,9 @@ def main():
 
     action = sys.argv[1]
     if action == 'update':
-        git(['fetch', 'origin'],
-            ['reset', '--hard', 'origin/master'])
+        git(['pull'])
+        #git(['fetch', 'origin'],
+        #    ['reset', '--hard', 'origin/master'])
     elif action == 'list':
         langs = [i[:-len(gig)] for i in os.listdir(repo) if i.endswith(gig)]
         langs += [os.path.join('Global', i[:-len(gig)]) for i in os.listdir(os.path.join(repo, 'Global')) if i.endswith(gig)]
