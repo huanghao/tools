@@ -32,7 +32,6 @@
 - 直接import需要的库，不需要异常处理
 
 ### 文件存在性检查规则
-- 不要使用大的try/catch块来检查文件是否存在
 - 直接使用os.path.exists()或pathlib.Path.exists()检查文件
 - 减少增加代码缩进深度
 

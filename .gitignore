@@ -1,3 +1,5 @@
+*.swp
+*.jpg
 *.pdf
 .specstory/
 

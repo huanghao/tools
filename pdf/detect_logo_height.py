@@ -8,15 +8,13 @@ PDF Logo Height Detection Tool
 """
 
 import argparse
-import sys
 import os
-from pathlib import Path
+import sys
 
-import fitz  # PyMuPDF
-from tqdm import tqdm
 import cv2
+import fitz  # PyMuPDF
 import numpy as np
-from PIL import Image
+from tqdm import tqdm
 
 
 def detect_logo_height_by_color(pdf_path, page_num=0, show_images=False):
@@ -103,9 +101,12 @@ def detect_logo_height_by_color(pdf_path, page_num=0, show_images=False):
         width_ratio = w / img.shape[1]
         height_ratio = h / img.shape[0]
 
-        if (width_ratio > 0.7 and  # 宽度占页面大部分
-            height_ratio > 0.05 and height_ratio < 0.3 and  # 高度合理
-            y < img.shape[0] * 0.2):  # 在页面顶部
+        if (
+            width_ratio > 0.7  # 宽度占页面大部分
+            and height_ratio > 0.05
+            and height_ratio < 0.3  # 高度合理
+            and y < img.shape[0] * 0.2
+        ):  # 在页面顶部
 
             if h > logo_height:
                 logo_height = h
@@ -124,15 +125,38 @@ def detect_logo_height_by_color(pdf_path, page_num=0, show_images=False):
             cv2.drawContours(debug_img, [best_contour], -1, (0, 255, 0), 2)
             x, y, w, h = cv2.boundingRect(best_contour)
             cv2.rectangle(debug_img, (x, y), (x + w, y + h), (255, 0, 0), 2)
-            cv2.putText(debug_img, f"Logo: {h}px", (x, y - 10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+            cv2.putText(
+                debug_img,
+                f"Logo: {h}px",
+                (x, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 0, 0),
+                2,
+            )
 
         # 绘制建议的裁剪线
-        cv2.line(debug_img, (0, logo_height), (img.shape[1], logo_height), (0, 0, 255), 2)
-        cv2.putText(debug_img, f"Suggested crop: {logo_height}px (scaled)",
-                   (10, logo_height + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        cv2.putText(debug_img, f"PDF coordinates: {int(logo_height / scale)}px",
-                   (10, logo_height + 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+        cv2.line(
+            debug_img, (0, logo_height), (img.shape[1], logo_height), (0, 0, 255), 2
+        )
+        cv2.putText(
+            debug_img,
+            f"Suggested crop: {logo_height}px (scaled)",
+            (10, logo_height + 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 0, 255),
+            2,
+        )
+        cv2.putText(
+            debug_img,
+            f"PDF coordinates: {int(logo_height / scale)}px",
+            (10, logo_height + 60),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (255, 0, 255),
+            2,
+        )
 
         # 准备三个图片用于并排显示
         # 1. 原图
@@ -166,11 +190,27 @@ def detect_logo_height_by_color(pdf_path, page_num=0, show_images=False):
         title_img.fill(255)  # 白色背景
 
         # 添加标题文字
-        cv2.putText(title_img, "Original", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
-        cv2.putText(title_img, "Detection Result", (original_resized.shape[1] + 10, 20),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
-        cv2.putText(title_img, "Color Mask", (original_resized.shape[1] + result_resized.shape[1] + 10, 20),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+        cv2.putText(
+            title_img, "Original", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2
+        )
+        cv2.putText(
+            title_img,
+            "Detection Result",
+            (original_resized.shape[1] + 10, 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 0, 0),
+            2,
+        )
+        cv2.putText(
+            title_img,
+            "Color Mask",
+            (original_resized.shape[1] + result_resized.shape[1] + 10, 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 0, 0),
+            2,
+        )
 
         # 合并标题和图片
         final_img = np.vstack([title_img, combined_img])
@@ -211,7 +251,9 @@ def analyze_multiple_pages(pdf_path, max_pages=5, show_images=False):
 
     heights = []
     for page_num in tqdm(range(total_pages), desc="分析页面", unit="页"):
-        height = detect_logo_height_by_color(pdf_path, page_num, show_images and page_num == 0)
+        height = detect_logo_height_by_color(
+            pdf_path, page_num, show_images and page_num == 0
+        )
         if height:
             heights.append(height)
             print(f"第 {page_num + 1} 页检测到logo高度: {height}px")
@@ -228,7 +270,7 @@ def analyze_multiple_pages(pdf_path, max_pages=5, show_images=False):
     min_height = min(heights)
     max_height = max(heights)
 
-    print(f"\n📊 检测结果统计:")
+    print("\n📊 检测结果统计:")
     print(f"   平均高度: {avg_height}px")
     print(f"   中位数高度: {median_height}px")
     print(f"   最小高度: {min_height}px")
@@ -238,7 +280,9 @@ def analyze_multiple_pages(pdf_path, max_pages=5, show_images=False):
     suggested_height = median_height
 
     print(f"\n💡 建议使用的裁剪高度: {suggested_height}px")
-    print(f"   命令: python remove_logo_at_the_top.py {pdf_path} output.pdf --crop-height {suggested_height}")
+    print(
+        f"   命令: python remove_logo_at_the_top.py {pdf_path} output.pdf --crop-height {suggested_height}"
+    )
 
     return suggested_height
 
@@ -257,16 +301,20 @@ def main():
 
   # 分析前5页
   python detect_logo_height.py input.pdf --max-pages 5
-        """
+        """,
     )
 
     parser.add_argument("input", help="输入PDF文件路径")
-    parser.add_argument("--page", type=int, default=None,
-                       help="要分析的页面编号（从0开始，默认分析多页）")
-    parser.add_argument("--max-pages", type=int, default=5,
-                       help="最大分析页数（默认5页）")
-    parser.add_argument("--show-images", action="store_true",
-                       help="显示检测结果图片")
+    parser.add_argument(
+        "--page",
+        type=int,
+        default=None,
+        help="要分析的页面编号（从0开始，默认分析多页）",
+    )
+    parser.add_argument(
+        "--max-pages", type=int, default=5, help="最大分析页数（默认5页）"
+    )
+    parser.add_argument("--show-images", action="store_true", help="显示检测结果图片")
 
     args = parser.parse_args()
 
@@ -279,7 +327,9 @@ def main():
         height = detect_logo_height_by_color(args.input, args.page, args.show_images)
         if height:
             print(f"\n💡 建议使用的裁剪高度: {height}px")
-            print(f"   命令: python remove_logo_at_the_top.py {args.input} output.pdf --crop-height {height}")
+            print(
+                f"   命令: python remove_logo_at_the_top.py {args.input} output.pdf --crop-height {height}"
+            )
     else:
         # 分析多个页面
         analyze_multiple_pages(args.input, args.max_pages, args.show_images)

@@ -1,6 +1,5 @@
-import os
-import sys
 import argparse
+import os
 
 
 def parse_args():

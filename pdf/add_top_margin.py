@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-PDF Logo Removal and Top Margin Tool
-去除PDF每页顶部的logo区域并添加顶部边距，保持原始页面大小
+PDF Top Margin Addition Tool
+在PDF每页上添加顶部边距，保持原始页面大小
 
 使用方法:
-    python remove_logo_at_the_top.py input.pdf output.pdf [--crop-height 50] [--top-margin 10]
+    python add_top_margin.py input.pdf output.pdf [--margin 5]
 """
 
 import argparse
@@ -15,15 +15,14 @@ import fitz  # PyMuPDF
 from tqdm import tqdm
 
 
-def remove_logo_and_add_margin(input_path, output_path, crop_height=50, top_margin=0):
+def add_top_margin_to_pdf(input_path, output_path, margin=5):
     """
-    去除PDF每页顶部的logo区域并添加顶部边距，保持原始页面大小
+    在PDF每页上添加顶部边距，保持原始页面大小
 
     Args:
         input_path (str): 输入PDF文件路径
         output_path (str): 输出PDF文件路径
-        crop_height (int): 从顶部去除的高度（默认50）
-        top_margin (int): 添加的顶部边距（默认0）
+        margin (int): 顶部边距大小（默认5）
     """
     # 检查输入文件是否存在
     if not os.path.exists(input_path):
@@ -58,22 +57,15 @@ def remove_logo_and_add_margin(input_path, output_path, crop_height=50, top_marg
             # 在新文档中创建相同尺寸的页面
             new_page = new_doc.new_page(width=page_width, height=page_height)
 
-            # 创建裁剪区域：从crop_height开始到页面底部
-            # PyMuPDF坐标系原点在左上角
-            crop_rect = fitz.Rect(0, crop_height, page_width, page_height)
+            # 将原页面内容复制到新页面，但向下偏移margin距离
+            # 通过调整目标区域来实现内容移动
+            target_rect = fitz.Rect(0, margin, page_width, page_height + margin)
 
-            # 计算目标区域：将裁剪后的内容向上移动crop_height距离，并添加top_margin
-            # 内容从top_margin开始，到page_height - crop_height + top_margin结束
-            target_rect = fitz.Rect(
-                0, top_margin, page_width, page_height - crop_height + top_margin
-            )
-
-            # 将裁剪后的内容复制到新页面
+            # 将原页面内容插入到新页面，向下偏移margin
             new_page.show_pdf_page(
-                target_rect,  # 目标区域
+                target_rect,  # 目标区域，向下偏移margin
                 doc,  # 源文档
                 page_num,  # 源页面
-                clip=crop_rect,  # 裁剪区域
             )
 
         # 关闭原文档
@@ -92,8 +84,7 @@ def remove_logo_and_add_margin(input_path, output_path, crop_height=50, top_marg
         output_doc.close()
 
         print("✅ PDF处理完成！")
-        print(f"去除顶部高度: {crop_height}px")
-        print(f"添加顶部边距: {top_margin}px")
+        print(f"添加顶部边距: {margin}px")
         print(f"输入文件页面尺寸: {input_width} x {input_height} points")
         print(f"输出文件页面尺寸: {output_width} x {output_height} points")
 
@@ -108,37 +99,24 @@ def remove_logo_and_add_margin(input_path, output_path, crop_height=50, top_marg
 
 def main():
     parser = argparse.ArgumentParser(
-        description="去除PDF每页顶部的logo区域并添加顶部边距，保持原始页面大小",
+        description="在PDF每页上添加顶部边距，保持原始页面大小",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
-  # 只去除logo，不添加边距
-  python remove_logo_at_the_top.py input.pdf output.pdf --crop-height 50
+  # 使用默认参数（添加5px顶部边距）
+  python add_top_margin.py input.pdf output.pdf
 
-  # 去除logo并添加顶部边距
-  python remove_logo_at_the_top.py input.pdf output.pdf --crop-height 50 --top-margin 10
-
-  # 只添加顶部边距，不去除logo
-  python remove_logo_at_the_top.py input.pdf output.pdf --crop-height 0 --top-margin 15
-
-  # 自定义参数
-  python remove_logo_at_the_top.py input.pdf output.pdf --crop-height 120 --top-margin 20
+  # 自定义顶部边距
+  python add_top_margin.py input.pdf output.pdf --margin 10
         """,
     )
 
     parser.add_argument("input", help="输入PDF文件路径")
     parser.add_argument("output", help="输出PDF文件路径")
-    parser.add_argument(
-        "--crop-height", type=int, default=50, help="从顶部去除的高度 (默认: 50)"
-    )
-    parser.add_argument(
-        "--top-margin", type=int, default=0, help="添加的顶部边距 (默认: 0)"
-    )
+    parser.add_argument("--margin", type=int, default=5, help="顶部边距大小 (默认: 5)")
 
     args = parser.parse_args()
-    remove_logo_and_add_margin(
-        args.input, args.output, args.crop_height, args.top_margin
-    )
+    add_top_margin_to_pdf(args.input, args.output, args.margin)
 
 
 if __name__ == "__main__":

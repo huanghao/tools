@@ -12,12 +12,11 @@ PDF文件合并工具
 2. 从stdin读取：echo "file1.pdf\\nfile2.pdf" | python merge_files.py -o output.pdf
 """
 
-import os
-import sys
 import argparse
+import sys
 from pathlib import Path
-from typing import List, Optional
-import PyPDF2
+from typing import List
+
 from PyPDF2 import PdfReader, PdfWriter
 
 
@@ -44,7 +43,7 @@ class PDFMerger:
                 print(f"错误：文件不存在 - {pdf_path}")
                 return False
 
-            if not pdf_path.suffix.lower() == '.pdf':
+            if not pdf_path.suffix.lower() == ".pdf":
                 print(f"错误：不是PDF文件 - {pdf_path}")
                 return False
 
@@ -85,12 +84,14 @@ class PDFMerger:
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
             # 写入合并后的PDF
-            with open(output_path, 'wb') as output_file:
+            with open(output_path, "wb") as output_file:
                 self.writer.write(output_file)
 
-            print(f"\n✓ 合并完成！")
+            print("\n✓ 合并完成！")
             print(f"输出文件: {output_path}")
-            print(f"合并了 {len(self.merged_files)} 个文件，共 {len(self.writer.pages)} 页")
+            print(
+                f"合并了 {len(self.merged_files)} 个文件，共 {len(self.writer.pages)} 页"
+            )
             return True
 
         except Exception as e:
@@ -128,26 +129,19 @@ def parse_args():
   python merge_files.py *.pdf -o output.pdf
   echo "file1.pdf\\nfile2.pdf" | python merge_files.py -o merged.pdf
   find . -name "*.pdf" | python merge_files.py -o all.pdf
-        """
+        """,
     )
 
-    parser.add_argument(
-        'input_files',
-        nargs='*',
-        help='要合并的PDF文件路径'
-    )
+    parser.add_argument("input_files", nargs="*", help="要合并的PDF文件路径")
 
     parser.add_argument(
-        '-o', '--output',
-        help='输出PDF文件路径（默认为 merged.pdf）',
-        default='merged.pdf'
+        "-o",
+        "--output",
+        help="输出PDF文件路径（默认为 merged.pdf）",
+        default="merged.pdf",
     )
 
-    parser.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        help='显示详细信息'
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="显示详细信息")
 
     return parser.parse_args()
 
