@@ -4,6 +4,22 @@
 2）先打印单数，从前往后打印
 3）再打印双数，从后往前打印（反着）
 页数可以用9-53:4这样的表达式，也可以用53-9:-4反着写
+
+
+3 cover,        5 toc
+59 improv,      56 tech exec 1
+57 tech exec 2, 8 song1a
+9 song1b,  12 song2a
+13 song2b, 16 song3a
+...
+           52 songna
+53 songnb, 64 notation
+
+$ python select_pages.py ~/Downloads/RSL\ GRADE\ 3.pdf 3,5,59,56,57,8,9,12,13,16,17,20,21,24,25,28,29,32,33,36,37,40,41,44,45,48,49,52,53,64 -o grade3.pdf
+$ python select_pages.py grade3.pdf 1-29:2 -o right.pdf
+$ python select_pages.py grade3.pdf 30-2:-2 -o left.pdf
+
+但家里的打印机是反着打印的，后面的页数先打印。还需要个更简单的办法。
 """
 
 import argparse
