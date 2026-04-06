@@ -15,7 +15,7 @@
            52 songna
 53 songnb, 64 notation
 
-$ python select_pages.py ~/Downloads/RSL\ GRADE\ 3.pdf 3,5,59,56,57,8,9,12,13,16,17,20,21,24,25,28,29,32,33,36,37,40,41,44,45,48,49,52,53,64 -o grade3.pdf
+$ python select_pages.py ~/Downloads/RSL GRADE 3.pdf 3,5,59,56,57,8,9,12,13,16,17,20,21,24,25,28,29,32,33,36,37,40,41,44,45,48,49,52,53,64 -o grade3.pdf
 $ python select_pages.py grade3.pdf 1-29:2 -o right.pdf
 $ python select_pages.py grade3.pdf 30-2:-2 -o left.pdf
 
