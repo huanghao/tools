@@ -21,9 +21,12 @@ Tokens are separated by commas and/or whitespace.
   9-53:4         stepped range  — pages 9,13,17,…,53  (also: 9..53..4)
   53-9:-4        reverse stepped — pages 53,49,45,…,9
   range(9,53,4)  explicit range() syntax (same as 9-53:4)
+
+Duplicate pages are preserved in output order — repeat a page intentionally to copy it.
 """
 
 import argparse
+import io
 import os
 import re
 import sys
@@ -137,7 +140,9 @@ def extract_pages(input_pdf: str, pages_expr: str, output_pdf: str | None) -> st
         writer.add_page(reader.pages[idx])
 
     if output_pdf == '-':
-        writer.write(sys.stdout.buffer)
+        buf = io.BytesIO()
+        writer.write(buf)
+        sys.stdout.buffer.write(buf.getvalue())
         return None
 
     if output_pdf is None:
