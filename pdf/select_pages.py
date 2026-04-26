@@ -1,174 +1,107 @@
 #!/usr/bin/env python3
-"""
-1）把所有要打印的页面挑出来，按顺序排好
-2）先打印单数，从前往后打印
-3）再打印双数，从后往前打印（反着）
-页数可以用9-53:4这样的表达式，也可以用53-9:-4反着写
+"""Select specific pages from a PDF and write to a new PDF or stdout.
 
+USAGE
+-----
+# Write to a file (auto-named if -o is omitted):
+  python select_pages.py input.pdf PAGES [-o output.pdf]
 
-3 cover,        5 toc
-59 improv,      56 tech exec 1
-57 tech exec 2, 8 song1a
-9 song1b,  12 song2a
-13 song2b, 16 song3a
-...
-           52 songna
-53 songnb, 64 notation
+# Write to stdout (pipe-friendly):
+  python select_pages.py input.pdf PAGES -o -
 
-$ python select_pages.py ~/Downloads/RSL GRADE 3.pdf 3,5,59,56,57,8,9,12,13,16,17,20,21,24,25,28,29,32,33,36,37,40,41,44,45,48,49,52,53,64 -o grade3.pdf
-$ python select_pages.py grade3.pdf 1-29:2 -o right.pdf
-$ python select_pages.py grade3.pdf 30-2:-2 -o left.pdf
+# Only expand and print the page numbers, no PDF written:
+  python select_pages.py input.pdf PAGES --print-only
 
-但家里的打印机是反着打印的，后面的页数先打印。还需要个更简单的办法。
+PAGE EXPRESSION SYNTAX
+----------------------
+Tokens are separated by commas and/or whitespace.
+
+  3,5,8          individual pages (1-based)
+  5-9            inclusive range
+  9-53:4         stepped range  — pages 9,13,17,…,53  (also: 9..53..4)
+  53-9:-4        reverse stepped — pages 53,49,45,…,9
+  range(9,53,4)  explicit range() syntax (same as 9-53:4)
 """
 
 import argparse
 import os
 import re
-from typing import List, Set
+import sys
+from typing import List
 
 from PyPDF2 import PdfReader, PdfWriter
 
 
 def parse_pages(pages_expr: str, total_pages: int) -> List[int]:
-    """Parse a pages expression like "1,3,5-7" into zero-based page indices.
+    """Parse a pages expression into zero-based page indices.
 
-    - Input pages are 1-based for user friendliness.
-    - Supports single numbers and inclusive ranges joined by commas.
-    - Validates that all pages are within [1, total_pages].
+    Input pages are 1-based. Validates all pages are within [1, total_pages].
     """
-    if not pages_expr:
+    if not pages_expr.strip():
         raise ValueError("pages expression cannot be empty")
 
     selected: List[int] = []
-    # Support tokens separated by commas and/or whitespace (spaces/newlines/tabs)
-    parts = [p.strip() for p in re.split(r"[\s,]+", pages_expr) if p.strip()]
-    if not parts:
-        raise ValueError("pages expression did not contain any pages")
+    # Split on whitespace/commas, but not inside parentheses (preserves range(a,b,c) as one token)
+    parts = [p.strip() for p in re.split(r"[\s,]+(?![^(]*\))", pages_expr) if p.strip()]
 
     for part in parts:
-        # Support explicit range-like expression: range(start,end,step) inclusive
         if part.lower().startswith('range(') and part.endswith(')'):
             inner = part[6:-1]
             nums = [n.strip() for n in inner.split(',') if n.strip()]
             if len(nums) != 3 or not all(s.lstrip('-').isdigit() for s in nums):
                 raise ValueError(f"Invalid range(...) expression: {part}")
-            start = int(nums[0])
-            end = int(nums[1])
-            step = int(nums[2])
-            if step == 0:
-                raise ValueError("range step cannot be 0")
-            if start == end:
-                # Single value
-                if start <= 0:
-                    raise ValueError("Page numbers must be positive")
-                if start > total_pages:
-                    raise ValueError(
-                        f"Page {start} out of bounds (total pages: {total_pages})"
-                    )
-                selected.append(start - 1)
-                continue
-            # Determine progression direction
-            if (end - start) // step < 0:
-                # Step sign does not move toward end
-                raise ValueError(f"range step does not progress from {start} to {end}")
-            current = start
-            if step > 0:
-                while current <= end:
-                    if current <= 0:
-                        raise ValueError("Page numbers must be positive")
-                    if current > total_pages:
-                        raise ValueError(
-                            f"Page {current} out of bounds (total pages: {total_pages})"
-                        )
-                    selected.append(current - 1)
-                    current += step
-            else:
-                while current >= end:
-                    if current <= 0:
-                        raise ValueError("Page numbers must be positive")
-                    if current > total_pages:
-                        raise ValueError(
-                            f"Page {current} out of bounds (total pages: {total_pages})"
-                        )
-                    selected.append(current - 1)
-                    current += step
+            start, end, step = int(nums[0]), int(nums[1]), int(nums[2])
+            selected.extend(_stepped_range(start, end, step, total_pages))
             continue
-        # Support stepped ranges like start-end:step or start..end..step (inclusive)
+
         m = re.match(r"^(?P<start>-?\d+)[.]{2}(?P<end>-?\d+)[.]{2}(?P<step>-?\d+)$", part)
         if not m:
             m = re.match(r"^(?P<start>-?\d+)\s*-\s*(?P<end>-?\d+)\s*:\s*(?P<step>-?\d+)$", part)
         if m:
-            start = int(m.group('start'))
-            end = int(m.group('end'))
-            step_str = m.group('step')
-            if step_str is None or step_str == '':
-                raise ValueError(f"Stepped range requires step: {part}")
-            step = int(step_str)
-            if step == 0:
-                raise ValueError("range step cannot be 0")
-            if start == end:
-                if start <= 0:
-                    raise ValueError("Page numbers must be positive")
-                if start > total_pages:
-                    raise ValueError(
-                        f"Page {start} out of bounds (total pages: {total_pages})"
-                    )
-                selected.append(start - 1)
-                continue
-            if (end - start) // step < 0:
-                raise ValueError(f"range step does not progress from {start} to {end}")
-            current = start
-            if step > 0:
-                while current <= end:
-                    if current <= 0:
-                        raise ValueError("Page numbers must be positive")
-                    if current > total_pages:
-                        raise ValueError(
-                            f"Page {current} out of bounds (total pages: {total_pages})"
-                        )
-                    selected.append(current - 1)
-                    current += step
-            else:
-                while current >= end:
-                    if current <= 0:
-                        raise ValueError("Page numbers must be positive")
-                    if current > total_pages:
-                        raise ValueError(
-                            f"Page {current} out of bounds (total pages: {total_pages})"
-                        )
-                    selected.append(current - 1)
-                    current += step
+            start, end, step = int(m.group('start')), int(m.group('end')), int(m.group('step'))
+            selected.extend(_stepped_range(start, end, step, total_pages))
             continue
+
         if '-' in part:
             start_str, end_str = part.split('-', 1)
             if not start_str.isdigit() or not end_str.isdigit():
                 raise ValueError(f"Invalid range: {part}")
-            start = int(start_str)
-            end = int(end_str)
-            if start <= 0 or end <= 0:
-                raise ValueError("Page numbers must be positive")
+            start, end = int(start_str), int(end_str)
             if start > end:
                 raise ValueError(f"Invalid range (start > end): {part}")
-            if end > total_pages:
-                raise ValueError(
-                    f"Page {end} out of bounds (total pages: {total_pages})"
-                )
-            for p in range(start, end + 1):
-                selected.append(p - 1)
-        else:
-            if not part.isdigit():
-                raise ValueError(f"Invalid page number: {part}")
-            p = int(part)
-            if p <= 0:
-                raise ValueError("Page numbers must be positive")
-            if p > total_pages:
-                raise ValueError(
-                    f"Page {p} out of bounds (total pages: {total_pages})"
-                )
-            selected.append(p - 1)
+            selected.extend(_stepped_range(start, end, 1, total_pages))
+            continue
+
+        if not part.isdigit():
+            raise ValueError(f"Invalid page number: {part}")
+        p = int(part)
+        if p == 0:
+            raise ValueError("Page numbers must be positive (got 0)")
+        if p > total_pages:
+            raise ValueError(f"Page {p} out of bounds (total pages: {total_pages})")
+        selected.append(p - 1)
 
     return selected
+
+
+def _stepped_range(start: int, end: int, step: int, total_pages: int) -> List[int]:
+    if step == 0:
+        raise ValueError("range step cannot be 0")
+    if (end - start) * step < 0:
+        raise ValueError(f"range step does not progress from {start} to {end}")
+    # Validate only the boundary values — every intermediate value is in-range by arithmetic
+    _validate_page(start, total_pages)
+    last = start if start == end else end if (end - start) % step == 0 else start + ((end - start) // step) * step
+    _validate_page(last, total_pages)
+    stop = end + (1 if step > 0 else -1)
+    return [p - 1 for p in range(start, stop, step)]
+
+
+def _validate_page(p: int, total_pages: int) -> None:
+    if p <= 0:
+        raise ValueError("Page numbers must be positive")
+    if p > total_pages:
+        raise ValueError(f"Page {p} out of bounds (total pages: {total_pages})")
 
 
 def build_default_output_path(input_path: str) -> str:
@@ -185,19 +118,27 @@ def build_default_output_path(input_path: str) -> str:
         counter += 1
 
 
-def extract_pages(input_pdf: str, pages_expr: str, output_pdf: str | None) -> str:
+def _resolve_pages(input_pdf: str, pages_expr: str) -> List[int]:
     reader = PdfReader(input_pdf)
-    total_pages = len(reader.pages)
+    return parse_pages(pages_expr, len(reader.pages))
 
-    page_indices = parse_pages(pages_expr, total_pages)
-    if not page_indices:
-        raise ValueError("No valid pages selected")
-    one_based = [str(i + 1) for i in page_indices]
-    print(','.join(one_based))
+
+def extract_pages(input_pdf: str, pages_expr: str, output_pdf: str | None) -> str | None:
+    """Extract pages from input_pdf and write to output_pdf.
+
+    Pass output_pdf='-' to write binary PDF to stdout.
+    Returns the output path, or None when writing to stdout.
+    """
+    reader = PdfReader(input_pdf)
+    page_indices = parse_pages(pages_expr, len(reader.pages))
 
     writer = PdfWriter()
     for idx in page_indices:
         writer.add_page(reader.pages[idx])
+
+    if output_pdf == '-':
+        writer.write(sys.stdout.buffer)
+        return None
 
     if output_pdf is None:
         output_pdf = build_default_output_path(input_pdf)
@@ -210,23 +151,14 @@ def extract_pages(input_pdf: str, pages_expr: str, output_pdf: str | None) -> st
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Select specific pages from a PDF and write to a new PDF",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        'input',
-        help='Path to input PDF file',
-    )
-    parser.add_argument(
-        'pages',
-        help=(
-            'Pages to include. Tokens can be separated by space or comma. '\
-            'Supported: single numbers (e.g. 3), ranges (e.g. 5-9), '\
-            'stepped ranges (e.g. 9-53:4 or 9..53..4), and range(9,53,4).'
-        ),
-    )
+    parser.add_argument('input', help='Path to input PDF file')
+    parser.add_argument('pages', help='Pages to include (see PAGE EXPRESSION SYNTAX above)')
     parser.add_argument(
         '-o', '--output',
-        help='Output PDF path (default: <input>.selected.pdf)',
+        help='Output PDF path; use - to write to stdout (default: <input>.selected.pdf)',
         default=None,
     )
     parser.add_argument(
@@ -238,17 +170,14 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.print_only:
-        reader = PdfReader(args.input)
-        total_pages = len(reader.pages)
-        page_indices = parse_pages(args.pages, total_pages)
-        one_based = [str(i + 1) for i in page_indices]
-        print(','.join(one_based))
+        page_indices = _resolve_pages(args.input, args.pages)
+        print(','.join(str(i + 1) for i in page_indices))
         return
 
     output_path = extract_pages(args.input, args.pages, args.output)
-    print(f"Wrote: {output_path}")
+    if output_path is not None:
+        print(f"Wrote: {output_path}", file=sys.stderr)
 
 
 if __name__ == '__main__':
     main()
-
